@@ -1,1 +1,10 @@
-[]
+[
+  {
+    "Action": [
+      "sts:AssumeRole"
+    ],
+    "Resource": [
+      "arn:aws:iam::988287937422:role/CentralSESSendMailRole"
+    ]
+  }
+]

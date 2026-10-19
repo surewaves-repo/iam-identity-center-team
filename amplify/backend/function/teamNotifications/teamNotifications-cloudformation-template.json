@@ -80,7 +80,8 @@
               "Fn::ImportValue": {
                 "Fn::Sub": "${apiteamGraphQLAPIIdOutput}:GetAtt:SettingsTable:Name"
               }
-            }
+            },
+            "SES_SENDER_ROLE_ARN": "arn:aws:iam::988287937422:role/CentralSESSendMailRole"
           }
         },
         "Role": {
