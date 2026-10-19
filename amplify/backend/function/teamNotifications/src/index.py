@@ -32,12 +32,44 @@ def parse_arn(arn):
     return result
 
 
+# SureWaves customization: send email by assuming a role in the account that owns
+# the SES identity (AnnaCentral), instead of SES cross-account sending authorization.
+SES_SENDER_ROLE_ARN = os.environ.get(
+    "SES_SENDER_ROLE_ARN", "arn:aws:iam::988287937422:role/CentralSESSendMailRole"
+)
+
+
+def get_assumed_ses_client(role_arn, region):
+    sts_client = session.client("sts")
+    creds = sts_client.assume_role(RoleArn=role_arn, RoleSessionName="SSMRole")[
+        "Credentials"
+    ]
+    return boto3.client(
+        "ses",
+        region_name=region,
+        aws_access_key_id=creds["AccessKeyId"],
+        aws_secret_access_key=creds["SecretAccessKey"],
+        aws_session_token=creds["SessionToken"],
+    )
+
+
 def send_ses_notification(
     source_email, source_arn, subject, message_html, to_addresses, cc_addresses
 ):
     try:
+        if SES_SENDER_ROLE_ARN:
+            ses_region = parse_arn(source_arn)["region"] if source_arn else "us-east-1"
+            ses_client = get_assumed_ses_client(SES_SENDER_ROLE_ARN, ses_region)
+            ses_client.send_email(
+                Source=source_email,
+                Destination={"ToAddresses": to_addresses, "CcAddresses": cc_addresses},
+                Message={
+                    "Subject": {"Data": subject, "Charset": "UTF-8"},
+                    "Body": {"Html": {"Data": message_html, "Charset": "UTF-8"}},
+                },
+            )
         # Providing a source arn enables using an SES identity in another account
-        if source_arn:
+        elif source_arn:
             ses_region = parse_arn(source_arn)["region"]
             ses_client = session.client("ses", region_name=ses_region)
 
