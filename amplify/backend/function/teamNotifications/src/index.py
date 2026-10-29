@@ -37,6 +37,11 @@ def parse_arn(arn):
 SES_SENDER_ROLE_ARN = os.environ.get(
     "SES_SENDER_ROLE_ARN", "arn:aws:iam::988287937422:role/CentralSESSendMailRole"
 )
+# SES configuration set without click tracking, so links are not rewritten by the
+# surewaves.com identity's default configuration set (MailForSurewaves).
+SES_CONFIGURATION_SET = os.environ.get("SES_CONFIGURATION_SET", "TEAM-Notifications")
+# Link used in emails/Slack; overrides the IdC start URL passed by teamRouter.
+TEAM_APP_URL = os.environ.get("TEAM_APP_URL", "https://access.surewaves.biz/")
 
 
 def get_assumed_ses_client(role_arn, region):
@@ -60,7 +65,7 @@ def send_ses_notification(
         if SES_SENDER_ROLE_ARN:
             ses_region = parse_arn(source_arn)["region"] if source_arn else "us-east-1"
             ses_client = get_assumed_ses_client(SES_SENDER_ROLE_ARN, ses_region)
-            ses_client.send_email(
+            send_args = dict(
                 Source=source_email,
                 Destination={"ToAddresses": to_addresses, "CcAddresses": cc_addresses},
                 Message={
@@ -68,6 +73,9 @@ def send_ses_notification(
                     "Body": {"Html": {"Data": message_html, "Charset": "UTF-8"}},
                 },
             )
+            if SES_CONFIGURATION_SET:
+                send_args["ConfigurationSetName"] = SES_CONFIGURATION_SET
+            ses_client.send_email(**send_args)
         # Providing a source arn enables using an SES identity in another account
         elif source_arn:
             ses_region = parse_arn(source_arn)["region"]
@@ -322,7 +330,7 @@ def lambda_handler(event: dict, context):
     duration_hours = event["time"]
     justification = event.get("justification", "No justification provided")
     ticket = event.get("ticketNo", "No ticket provided")
-    login_url = event["sso_login_url"]
+    login_url = TEAM_APP_URL or event["sso_login_url"]
     sns_message = json.dumps(event)
     slack_audit_message = ""
 
